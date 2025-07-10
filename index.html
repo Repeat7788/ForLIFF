@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LINE 帳號綁定中...</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
+</head>
+<body>
+  <p style="text-align: center; font-family: sans-serif; padding-top: 20%;">正在為您進行安全綁定，請稍候...</p>
+
+  <script>
+    // --- 請在這裡修改您的設定 ---
+    const liffId = "請在這裡貼上您的LIFF_ID";
+    const tallyUrlBase = "https://tally.so/r/wkjKxd"; 
+    // --- 修改結束 ---
+
+    liff.init({ liffId: liffId })
+      .then(() => {
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          liff.getProfile()
+            .then(profile => {
+              const userId = profile.userId;
+              const finalTallyUrl = `${tallyUrlBase}?userid=${userId}`;
+              // 執行最終的轉址
+              window.location.replace(finalTallyUrl);
+            })
+            .catch(err => {
+              console.error('獲取 Profile 失敗:', err);
+              // 如果出錯，至少也要轉到原始表單
+              window.location.replace(tallyUrlBase);
+            });
+        }
+      })
+      .catch(err => {
+        console.error('LIFF 初始化失敗:', err);
+        // 如果出錯，至少也要轉到原始表單
+        window.location.replace(tallyUrlBase);
+      });
+  </script>
+</body>
+</html>
