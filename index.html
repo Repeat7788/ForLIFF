@@ -27,9 +27,6 @@ liff.init({ liffId: liffId })
           // 【新增】從禮包中，取出顯示名稱
           const displayName = profile.displayName;
 
-          // 【升級】組合您最終的 Tally 連結，這次多帶一個 displayname 參數
-          // 我們使用 encodeURIComponent 來確保中文或特殊符號的暱稱能被正確傳遞
-          const finalTallyUrl = `${tallyUrlBase}?userid=${userId}&displayname=${encodeURIComponent(displayName)}`;
 
           // 執行最終的轉址
           window.location.replace(finalTallyUrl);
