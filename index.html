@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LINE 帳號綁定中...</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
 </head>
@@ -10,48 +10,35 @@
   <p style="text-align: center; font-family: sans-serif; padding-top: 20%;">正在為您進行安全綁定，請稍候...</p>
 
   <script>
-    // ←── 在這裡填你的 LIFF ID & Tally 表單基本網址 ──→
+    // --- 請在這裡修改您的設定 ---
     const liffId = "2007725227-wVAn9A4O";
-    const tallyUrlBase = "https://tally.so/r/wkjKxd";
+    const tallyUrlBase = "https://tally.so/r/wkjKxd"; 
+    // --- 修改結束 ---
 
-    async function main() {
-      // 初始化 LIFF
-      await liff.init({ liffId });
-
-      // 若未登入，跳去 LINE 登入（同時帶 openid scope 以取得 id token）
-      if (!liff.isLoggedIn()) {
-        liff.login({ scope: 'profile openid' });
-        return;
-      }
-
-      // 已登入：先嘗試用 getProfile()
-      let userId, displayName;
-      try {
-        const profile = await liff.getProfile();
-        userId = profile.userId;
-        displayName = profile.displayName;
-      } catch (err) {
-        // 如果 getProfile 拿不到 displayName，改用 id token
-        const idToken = liff.getDecodedIDToken();
-        userId = idToken.sub;
-        displayName = idToken.name;
-      }
-
-      // 組合最終帶參數的 Tally 連結
-      const finalTallyUrl =
-        `${tallyUrlBase}` +
-        `?userid=${encodeURIComponent(userId)}` +
-        `&displayname=${encodeURIComponent(displayName)}`;
-
-      // 導向 Tally 表單
-      window.location.replace(finalTallyUrl);
-    }
-
-    main().catch(err => {
-      console.error("LIFF 執行失敗", err);
-      // 若一切失敗，至少導向原表單
-      window.location.replace(tallyUrlBase);
-    });
+    liff.init({ liffId: liffId })
+      .then(() => {
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          liff.getProfile()
+            .then(profile => {
+              const userId = profile.userId;
+              const finalTallyUrl = `${tallyUrlBase}?userid=${userId}`;
+              // 執行最終的轉址
+              window.location.replace(finalTallyUrl);
+            })
+            .catch(err => {
+              console.error('獲取 Profile 失敗:', err);
+              // 如果出錯，至少也要轉到原始表單
+              window.location.replace(tallyUrlBase);
+            });
+        }
+      })
+      .catch(err => {
+        console.error('LIFF 初始化失敗:', err);
+        // 如果出錯，至少也要轉到原始表單
+        window.location.replace(tallyUrlBase);
+      });
   </script>
 </body>
 </html>
