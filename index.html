@@ -21,51 +21,46 @@ liff.init({ liffId: liffId })
     }
     updateStatus("已登入，正在獲取使用者資料...", false);
 
-    // **這是正確的寫法：使用 Promise 來處理非同步操作**
-    liff.getAccessToken()
-      .then(accessToken => {
-        if (!accessToken) {
-          updateStatus("錯誤：無法取得 Access Token，綁定失敗。", true);
-          return;
+    // 直接同步取得 Access Token
+    const accessToken = liff.getAccessToken();
+    if (!accessToken) {
+      updateStatus("錯誤：無法取得 Access Token，綁定失敗。", true);
+      return;
+    }
+
+    // 呼叫 LINE Profile API
+    fetch('https://api.line.me/v2/profile', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`LINE Profile API 發生錯誤：${res.status}`);
+        }
+        return res.json();
+      })
+      .then(profile => {
+        const userId = profile.userId;
+        const displayName = profile.displayName;
+
+        // 取得 Email (需在 LIFF App scope 中包含 openid 且用戶授權)
+        const decodedIdToken = liff.getDecodedIDToken();
+        const email = decodedIdToken ? decodedIdToken.email : null;
+        if (!email) {
+          throw new Error("無法取得您的 Email，請確認已授予權限。");
         }
 
-        // 呼叫 LINE 的 Profile API 來獲取 UserID 和 displayName
-        return fetch('https://api.line.me/v2/profile', {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            }
-          })
-          .then(res => {
-            if (!res.ok) {
-              throw new Error(`LINE Profile API 發生錯誤：${res.status}`);
-            }
-            return res.json();
-          })
-          .then(profile => {
-            const userId = profile.userId;
-            const displayName = profile.displayName;
+        updateStatus("已取得所有資料，正在傳送至 Make...", false);
 
-            // 獲取 Email (需要 OpenID Connect 權限)
-            const decodedIdToken = liff.getDecodedIDToken();
-            const email = decodedIdToken ? decodedIdToken.email : null;
-            if (!email) {
-              throw new Error("無法取得您的 Email，請確認已授予權限。");
-            }
-
-            // POST 資料給 Make Webhook
-            updateStatus("已取得所有資料，正在傳送至 Make...", false);
-            return fetch(makeWebhookUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                email: email,
-                userId: userId,
-                displayName: displayName
-              })
-            });
-          });
+        // 傳送資料至 Make Webhook
+        return fetch(makeWebhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, userId, displayName })
+        });
       })
       .then(response => {
         if (!response.ok) {
