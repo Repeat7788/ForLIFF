@@ -1,103 +1,101 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>LIFF 帳號綁定</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <title>帳號綁定服務</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            text-align: center;
+            padding-top: 50px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            margin: auto;
+        }
+        #status-message {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
 </head>
 <body>
-  <h2>LIFF 帳號綁定</h2>
-  <div id="status-message">初始化中...</div>
+    <div class="container">
+        <h1>人類圖帳號綁定</h1>
+        <p id="status-message">正在為您進行帳號綁定...</p>
+    </div>
 
-  <!-- LIFF SDK -->
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
+    <script>
+        // --- 請在這裡修改您的設定 ---
+        const liffId = "2007725227-wVAn9A4O"; // 你的 LIFF ID
+        const makeWebhookUrl = "https://hook.us2.make.com/2fctyuomwdb0coppj1c7jy5zo4kyk7tt"; // 替換成你的 Make Webhook URL
+        // --- 修改結束 ---
 
-  <!-- 你的 LIFF JS 程式碼 -->
-  <script>
-    // --- 請在這裡修改您的設定 ---
-    const liffId = "2007725227-wVAn9A4O"; // 你的 LIFF ID
-    const makeWebhookUrl = "https://hook.us2.make.com/2fctyuomwdb0coppj1c7jy5zo4kyk7tt"; // 你的 Make webhook URL
-    // --- 修改結束 ---
-
-    // 顯示當前狀態的小函式
-    function updateStatus(message, isError) {
-      const statusElement = document.getElementById("status-message");
-      if (statusElement) {
-        statusElement.textContent = message;
-        statusElement.style.color = isError ? "red" : "green";
-      }
-    }
-
-    // LIFF 初始化開始
-    liff
-      .init({ liffId })
-      .then(() => {
-        if (!liff.isLoggedIn()) {
-          updateStatus("正在登入 LINE...", false);
-          liff.login();
-          return;
+        function updateStatus(message, isError) {
+            const statusElement = document.getElementById('status-message');
+            if (statusElement) {
+                statusElement.textContent = message;
+                statusElement.style.color = isError ? 'red' : 'green';
+            }
         }
 
-        updateStatus("已登入，正在獲取使用者資料...", false);
+        liff.init({ liffId: liffId })
+            .then(() => {
+                if (!liff.isLoggedIn()) {
+                    updateStatus("正在登入 LINE...", false);
+                    liff.login();
+                    return;
+                }
+                updateStatus("已登入，正在獲取使用者資料...", false);
 
-        const accessToken = liff.getAccessToken();
-        if (!accessToken) {
-          updateStatus("錯誤：無法取得 Access Token，綁定失敗。", true);
-          return;
-        }
+                // 正確使用 getProfile()，非同步處理
+                liff.getProfile()
+                    .then(profile => {
+                        const userId = profile.userId;
+                        const displayName = profile.displayName;
 
-        fetch("https://api.line.me/v2/profile", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        })
-          .then((res) => {
-            if (!res.ok) {
-              throw new Error(`LINE Profile API 錯誤：${res.status}`);
-            }
-            return res.json();
-          })
-          .then((profile) => {
-            const userId = profile.userId;
-            const displayName = profile.displayName;
+                        const decodedIdToken = liff.getDecodedIDToken();
+                        const email = decodedIdToken ? decodedIdToken.email : null;
 
-            const decodedIdToken = liff.getDecodedIDToken();
-            const email = decodedIdToken ? decodedIdToken.email : null;
+                        if (!email) {
+                            throw new Error("無法取得您的 Email，請確認已授予權限。");
+                        }
 
-            if (!email) {
-              throw new Error("無法取得 Email，請確認已授權 email scope");
-            }
-
-            updateStatus("已取得資料，正在傳送至 Make...", false);
-
-            return fetch(makeWebhookUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                email,
-                userId,
-                displayName,
-              }),
+                        // POST 資料給 Make Webhook
+                        updateStatus("已取得所有資料，正在傳送至 Make...", false);
+                        return fetch(makeWebhookUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: email,
+                                userId: userId,
+                                displayName: displayName
+                            })
+                        });
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`發送到 Make Webhook 失敗：${response.status}`);
+                        }
+                        updateStatus("帳號綁定成功！", false);
+                    })
+                    .catch(err => {
+                        console.error('LIFF 處理失敗:', err);
+                        updateStatus(`錯誤：${err.message}`, true);
+                    });
+            })
+            .catch(err => {
+                console.error('LIFF 初始化失敗:', err);
+                updateStatus(`錯誤：LIFF 初始化失敗。`, true);
             });
-          })
-          .then((response) => {
-            if (!response.ok) {
-              throw new Error(
-                `發送到 Make Webhook 失敗：${response.status}`
-              );
-            }
-            updateStatus("帳號綁定成功！", false);
-          })
-          .catch((err) => {
-            console.error(err);
-            updateStatus(`錯誤：${err.message}`, true);
-          });
-      })
-      .catch((err) => {
-        console.error("LIFF 初始化失敗:", err);
-        updateStatus("錯誤：LIFF 初始化失敗。", true);
-      });
-  </script>
+    </script>
 </body>
 </html>
