@@ -1,55 +1,104 @@
-liff.init({ liffId: liffId })
-  .then(() => {
-    if (!liff.isLoggedIn()) {
-      liff.login();
-    } else {
-      liff.getAccessToken().then(accessToken => {
-        // 獲取 access token
-        // 使用 access token 呼叫 LINE 的 profile API 來獲取 UserID 和 displayName
-        fetch('https://api.line.me/v2/profile', {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            }
-          })
-          .then(res => res.json())
-          .then(profile => {
-            const userId = profile.userId;
-            const displayName = profile.displayName;
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LINE 帳號綁定中...</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding-top: 20%; background-color: #f0f0f0; }
+    p { font-size: 1.2em; color: #666; }
+    .error { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <p>正在為您進行帳號綁定，請稍候...</p>
 
-            // 獲取 email (需要 OpenID Connect 權限)
-            liff.getIDToken().then(idToken => {
-              const decodedIdToken = liff.getDecodedIDToken();
-              const email = decodedIdToken.email;
+  <script>
+    // --- 請在這裡修改您的設定 ---
+    const liffId = "2007725227-wVAn9A4O"; // 你的 LIFF ID
+    // <<-- 這裡替換成你的 Make Webhook URL，但不需要 const makeWebhookUrl = "..."; 
+    const makeWebhookUrl = "https://hook.us2.make.com/2fctyuomwdb0coppj1c7jy5zo4kyk7tt";
+    // --- 修改結束 ---
 
-              // 將所有資料 (Email, UserID, displayName) POST 給 Make
-              fetch('https://hook.us2.make.com/2fctyuomwdb0coppj1c7jy5zo4kyk7tt', { // <<-- 請替換成 Make 的 Webhook URL
-                  method: 'POST',
+    liff.init({ liffId: liffId })
+      .then(() => {
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          // 獲取 access token
+          liff.getAccessToken()
+            .then(accessToken => {
+              if (!accessToken) {
+                document.body.innerHTML = "<p class='error'>無法取得 Access Token，綁定失敗。</p>";
+                return;
+              }
+              
+              // 使用 access token 呼叫 LINE 的 profile API 來獲取 UserID 和 displayName
+              fetch('https://api.line.me/v2/profile', {
                   headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    email: email,
-                    userId: userId,
-                    displayName: displayName
-                  })
-                })
-                .then(response => {
-                  if (response.ok) {
-                    // 如果成功，顯示成功訊息
-                    document.body.innerHTML = "<p>帳號綁定成功！</p>";
-                  } else {
-                    document.body.innerHTML = "<p>綁定失敗，請重試。</p>";
+                    'Authorization': `Bearer ${accessToken}`
                   }
+                })
+                .then(res => {
+                  if (!res.ok) {
+                    document.body.innerHTML = `<p class='error'>LINE API 發生錯誤：${res.status} ${res.statusText}</p>`;
+                    throw new Error(`LINE API error: ${res.status} ${res.statusText}`);
+                  }
+                  return res.json();
+                })
+                .then(profile => {
+                  const userId = profile.userId;
+                  const displayName = profile.displayName;
+
+                  // 獲取 email (需要 OpenID Connect 權限)
+                  const decodedIdToken = liff.getDecodedIDToken();
+                  const email = decodedIdToken ? decodedIdToken.email : null;
+
+                  if (!email) {
+                    document.body.innerHTML = "<p class='error'>無法取得您的 Email，請確認已授予權限。</p>";
+                    return;
+                  }
+
+                  // 將所有資料 (Email, UserID, displayName) POST 給 Make
+                  fetch(makeWebhookUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        email: email,
+                        userId: userId,
+                        displayName: displayName
+                      })
+                    })
+                    .then(response => {
+                      if (response.ok) {
+                        document.body.innerHTML = "<p>帳號綁定成功！</p>";
+                      } else {
+                        document.body.innerHTML = `<p class='error'>綁定失敗，請重試。錯誤：${response.status} ${response.statusText}</p>`;
+                      }
+                    })
+                    .catch(err => {
+                      document.body.innerHTML = `<p class='error'>發送資料失敗，請檢查網路連線或 Make 設定。</p>`;
+                      console.error('Fetch POST to Make failed:', err);
+                    });
+                })
+                .catch(err => {
+                  document.body.innerHTML = "<p class='error'>無法取得您的資料，綁定失敗。</p>";
+                  console.error('Failed to get profile or other error:', err);
                 });
-            }).catch(err => {
-              // 處理沒有 Email 權限的錯誤
-              document.body.innerHTML = "<p>請同意授權 Email。</p>";
+            })
+            .catch(err => {
+              document.body.innerHTML = "<p class='error'>LIFF 發生錯誤，綁定失敗。</p>";
+              console.error('LIFF init or getAccessToken failed:', err);
             });
-          });
+        }
+      })
+      .catch(err => {
+        document.body.innerHTML = "<p class='error'>LIFF 初始化失敗，綁定失敗。</p>";
+        console.error('LIFF init failed:', err);
       });
-    }
-  })
-  .catch(err => {
-    console.error('LIFF 初始化失敗:', err);
-    document.body.innerHTML = "<p>LIFF 發生錯誤。</p>";
-  });
+  </script>
+</body>
+</html>
