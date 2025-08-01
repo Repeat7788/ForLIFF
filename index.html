@@ -1,44 +1,55 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LINE 帳號綁定中...</title>
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
-</head>
-<body>
-  <p style="text-align: center; font-family: sans-serif; padding-top: 20%;">正在為您進行安全綁定，請稍候...</p>
+liff.init({ liffId: liffId })
+  .then(() => {
+    if (!liff.isLoggedIn()) {
+      liff.login();
+    } else {
+      liff.getAccessToken().then(accessToken => {
+        // 獲取 access token
+        // 使用 access token 呼叫 LINE 的 profile API 來獲取 UserID 和 displayName
+        fetch('https://api.line.me/v2/profile', {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          })
+          .then(res => res.json())
+          .then(profile => {
+            const userId = profile.userId;
+            const displayName = profile.displayName;
 
-  <script>
-    // --- 請在這裡修改您的設定 ---
-    const liffId = "2007725227-wVAn9A4O";
-    const tallyUrlBase = "https://tally.so/r/wkjKxd"; 
-    // --- 修改結束 ---
+            // 獲取 email (需要 OpenID Connect 權限)
+            liff.getIDToken().then(idToken => {
+              const decodedIdToken = liff.getDecodedIDToken();
+              const email = decodedIdToken.email;
 
-    liff.init({ liffId: liffId })
-      .then(() => {
-        if (!liff.isLoggedIn()) {
-          liff.login();
-        } else {
-          liff.getProfile()
-            .then(profile => {
-              const userId = profile.userId;
-              const finalTallyUrl = `${tallyUrlBase}?userid=${userId}`;
-              // 執行最終的轉址
-              window.location.replace(finalTallyUrl);
-            })
-            .catch(err => {
-              console.error('獲取 Profile 失敗:', err);
-              // 如果出錯，至少也要轉到原始表單
-              window.location.replace(tallyUrlBase);
+              // 將所有資料 (Email, UserID, displayName) POST 給 Make
+              fetch('https://hook.us2.make.com/gjd2wn803g419befk75drc6y1amhxp4n', { // <<-- 請替換成 Make 的 Webhook URL
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    email: email,
+                    userId: userId,
+                    displayName: displayName
+                  })
+                })
+                .then(response => {
+                  if (response.ok) {
+                    // 如果成功，顯示成功訊息
+                    document.body.innerHTML = "<p>帳號綁定成功！</p>";
+                  } else {
+                    document.body.innerHTML = "<p>綁定失敗，請重試。</p>";
+                  }
+                });
+            }).catch(err => {
+              // 處理沒有 Email 權限的錯誤
+              document.body.innerHTML = "<p>請同意授權 Email。</p>";
             });
-        }
-      })
-      .catch(err => {
-        console.error('LIFF 初始化失敗:', err);
-        // 如果出錯，至少也要轉到原始表單
-        window.location.replace(tallyUrlBase);
+          });
       });
-  </script>
-</body>
-</html>
+    }
+  })
+  .catch(err => {
+    console.error('LIFF 初始化失敗:', err);
+    document.body.innerHTML = "<p>LIFF 發生錯誤。</p>";
+  });
