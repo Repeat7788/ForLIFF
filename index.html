@@ -36,7 +36,7 @@
     <script>
         // --- 請在這裡修改您的設定 ---
         const liffId = "2007725227-wVAn9A4O"; // 你的 LIFF ID
-        const makeWebhookUrl = "https://hook.us2.make.com/2fctyuomwdb0coppj1c7jy5zo4kyk7tt"; // 替換成你的 Make Webhook URL
+        const n8nBindWebhookUrl = "https://repeat-taxi.app.n8n.cloud/webhook-test/fb2262bb-ccb8-4d57-b7f7-039765f1db42"; // 替換成你的 n8n Webhook URL
         // --- 修改結束 ---
 
         function updateStatus(message, isError) {
@@ -69,9 +69,9 @@
                             throw new Error("無法取得您的 Email，請確認已授予權限。");
                         }
 
-                        // POST 資料給 Make Webhook
-                        updateStatus("已取得所有資料，正在傳送至 Make...", false);
-                        return fetch(makeWebhookUrl, {
+                        // POST 資料給 n8n Webhook
+                        updateStatus("已取得所有資料，正在傳送至 n8n...", false);
+                        return fetch(n8nBindWebhookUrl, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -82,11 +82,19 @@
                         });
                     })
                     .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`發送到 Make Webhook 失敗：${response.status}`);
-                        }
-                        updateStatus("帳號綁定成功！", false);
-                    })
+                        if (!response.ok) {
+                            // 錯誤訊息替換為 n8n
+                            throw new Error(`發送到 n8n Webhook 失敗：${response.status}`);
+                        }
+                        
+                        // 成功訊息替換並新增關閉視窗邏輯 (解決第二個問題)
+                        updateStatus("✅ 帳號綁定成功！請回到 LINE 查看通知。", false); 
+                        
+                        // 延遲 1.5 秒後自動關閉 LIFF 視窗，提供良好體驗
+                        setTimeout(() => {
+                            liff.closeWindow(); 
+                        }, 1500);
+                    })
                     .catch(err => {
                         console.error('LIFF 處理失敗:', err);
                         updateStatus(`錯誤：${err.message}`, true);
